@@ -8,4 +8,6 @@ torchvision models as backbones in the encoder path. There is a great
 for this in Keras, but I didn't find a good PyTorch implementation that works
 with multiple torchvision models. So I decided to create one.
 
-###WIP
+### WIP
+
+So far VGG and ResNet backbones have been implemented.
