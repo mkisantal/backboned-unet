@@ -6,11 +6,30 @@ from torch.nn import functional as F
 
 def get_backbone(name, pretrained=True):
 
+    """ Loading backbone, defining names for skip-connections and encoder output. """
+
     # TODO: More backbones
 
-    if name == 'resnet50':
+    if name == 'resnet18':
         backbone = models.resnet50(pretrained=pretrained)
-    return backbone
+    elif name == 'resnet34':
+        backbone = models.resnet34(pretrained=pretrained)
+    elif name == 'resnet50':
+        backbone = models.resnet50(pretrained=pretrained)
+    elif name == 'resnet101':
+        backbone = models.resnet101(pretrained=pretrained)
+    elif name == 'resnet152':
+        backbone = models.resnet152(pretrained=pretrained)
+    else:
+        raise NotImplemented('Only resnet models implemented so far.')
+
+    if name.startswith('resnet'):
+        feature_names = [None, 'relu', 'layer1', 'layer2', 'layer3']
+        backbone_output = 'layer4'
+    else:
+        raise NotImplemented('Only resnet models implemented so far.')
+
+    return backbone, feature_names, backbone_output
 
 
 class UpsampleBlock(nn.Module):
@@ -69,6 +88,8 @@ class UpsampleBlock(nn.Module):
 
 class Unet(nn.Module):
 
+    """ U-Net implementation with pre-trained torchvision backbones."""
+
     def __init__(self,
                  backbone_name='resnet50',
                  input_shape=(None, None, 3),
@@ -82,20 +103,17 @@ class Unet(nn.Module):
                  decoder_use_batchnorm=True):
         super(Unet, self).__init__()
 
-        self.backbone = get_backbone(backbone_name)
-
-        # extract feature layers from backbone
-        # TODO: defining feature layers for different networks
-        self.shortcut_features = [None, 'relu', 'layer1', 'layer2', 'layer3']
-
+        self.backbone, self.shortcut_features, self.bb_out_name = get_backbone(backbone_name)
+        shortcut_chs, bb_out_chs = self.infer_skip_channels(self.bb_out_name)
+        print(shortcut_chs)
         # build decoder part
         # TODO: build with loop?
         self.upsample_blocks = nn.ModuleList()
-        self.upsample_blocks.append(UpsampleBlock(2048, 256, skip_in=1024, parametric=True))
-        self.upsample_blocks.append(UpsampleBlock(256, 128, skip_in=512, parametric=True))
-        self.upsample_blocks.append(UpsampleBlock(128, 64, skip_in=256, parametric=True))
-        self.upsample_blocks.append(UpsampleBlock(64, 32, skip_in=64, parametric=True))
-        self.upsample_blocks.append(UpsampleBlock(32, 16, skip_in=0, parametric=True))
+        self.upsample_blocks.append(UpsampleBlock(bb_out_chs, 256, skip_in=shortcut_chs[4], parametric=True))
+        self.upsample_blocks.append(UpsampleBlock(256, 128, skip_in=shortcut_chs[3], parametric=True))
+        self.upsample_blocks.append(UpsampleBlock(128, 64, skip_in=shortcut_chs[2], parametric=True))
+        self.upsample_blocks.append(UpsampleBlock(64, 32, skip_in=shortcut_chs[1], parametric=True))
+        self.upsample_blocks.append(UpsampleBlock(32, 16, skip_in=shortcut_chs[0], parametric=True))
 
         self.final_conv = nn.Conv2d(16, classes, kernel_size=(1, 1))
 
@@ -130,20 +148,36 @@ class Unet(nn.Module):
 
         return x
 
+    def infer_skip_channels(self, out_name):
+
+        """ Getting the number of channels at skip connections and at the output of the encoder. """
+
+        x = torch.zeros(1, 3, 224, 224)
+        channels = [0]
+
+        # forward run in backbone to count channels
+        for name, child in self.backbone.named_children():
+            x = child(x)
+            if name in self.shortcut_features:
+                channels.append(x.shape[1])
+            if name == out_name:
+                out_channels = x.shape[1]
+                break
+        return channels, out_channels
+
 
 if __name__ == "__main__":
 
     # simple test run
-    net = Unet().cuda()
+    net = Unet(backbone_name='resnet50')
 
     criterion = nn.MSELoss()
     optimizer = torch.optim.Adam(net.parameters())
-
+    print('Network initialized. Running a test batch.')
     for _ in range(1):
         with torch.set_grad_enabled(True):
-
-            batch = torch.empty(3, 3, 224, 224).normal_().cuda()
-            targets = torch.empty(3, 1, 224, 224).normal_().cuda()
+            batch = torch.empty(1, 3, 224, 224).normal_()
+            targets = torch.empty(1, 1, 224, 224).normal_()
 
             out = net(batch)
             loss = criterion(out, targets)
