@@ -10,4 +10,4 @@ with multiple torchvision models. So I decided to create one.
 
 ### WIP
 
-So far VGG and ResNet backbones have been implemented.
+So far VGG, ResNet and DenseNet backbones have been implemented.

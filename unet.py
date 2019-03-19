@@ -3,6 +3,7 @@ import torch.nn as nn
 from torchvision import models
 from torch.nn import functional as F
 
+
 def get_backbone(name, pretrained=True):
 
     """ Loading backbone, defining names for skip-connections and encoder output. """
@@ -20,11 +21,21 @@ def get_backbone(name, pretrained=True):
     elif name == 'resnet152':
         backbone = models.resnet152(pretrained=pretrained)
     elif name == 'vgg16':
-        backbone = models.vgg16_bn(pretrained=pretrained).features  # without fc head
+        backbone = models.vgg16_bn(pretrained=pretrained).features
     elif name == 'vgg19':
-        backbone = models.vgg19_bn(pretrained=pretrained).features  # without fc head
+        backbone = models.vgg19_bn(pretrained=pretrained).features
+    # elif name == 'inception_v3':
+    #     backbone = models.inception_v3(pretrained=pretrained, aux_logits=False)
+    elif name == 'densenet121':
+        backbone = models.densenet121(pretrained=True).features
+    elif name == 'densenet161':
+        backbone = models.densenet161(pretrained=True).features
+    elif name == 'densenet169':
+        backbone = models.densenet169(pretrained=True).features
+    elif name == 'densenet201':
+        backbone = models.densenet201(pretrained=True).features
     else:
-        raise NotImplemented('Only resnet models implemented so far.')
+        raise NotImplemented('{} backbone model is not implemented so far.'.format(name))
 
     if name.startswith('resnet'):
         feature_names = [None, 'relu', 'layer1', 'layer2', 'layer3']
@@ -36,8 +47,14 @@ def get_backbone(name, pretrained=True):
     elif name == 'vgg19':
         feature_names = ['5', '12', '25', '38', '51']
         backbone_output = '52'
+    # elif name == 'inception_v3':
+    #     feature_names = [None, 'Mixed_5d', 'Mixed_6e']
+    #     backbone_output = 'Mixed_7c'
+    elif name.startswith('densenet'):
+        feature_names = [None, 'relu0', 'denseblock1', 'denseblock2', 'denseblock3']
+        backbone_output = 'denseblock4'
     else:
-        raise NotImplemented('Only resnet models implemented so far.')
+        raise NotImplemented('{} backbone model is not implemented so far.'.format(name))
 
     return backbone, feature_names, backbone_output
 
@@ -117,7 +134,7 @@ class Unet(nn.Module):
 
         self.backbone, self.shortcut_features, self.bb_out_name = get_backbone(backbone_name)
         shortcut_chs, bb_out_chs = self.infer_skip_channels()
-        print(shortcut_chs)
+
         # build decoder part
         # TODO: build with loop?
         self.upsample_blocks = nn.ModuleList()
@@ -132,18 +149,8 @@ class Unet(nn.Module):
         # TODO: optionally freeze encoder weights
 
     def forward(self, *input):
-        if self.backbone_name.startswith('resnet'):
-            x, features = self.forward_resnet_backbone(*input)
-        else:
-            x, features = self.forward_vgg_backbone(*input)
+        x, features = self.forward_backbone(*input)
 
-        print('Backbone ran.')
-        print('x: {}'.format(x.shape))
-        for skip_name in self.shortcut_features:
-            if features[skip_name] is not None:
-                print('\t[{}]: {}'.format(skip_name, features[skip_name].shape))
-            else:
-                print('\t[{}]: {}'.format(skip_name, features[skip_name]))
         for skip_name, upsample_block in zip(self.shortcut_features[::-1], self.upsample_blocks):
             print(skip_name)
             skip_features = features[skip_name]
@@ -152,7 +159,7 @@ class Unet(nn.Module):
         x = self.final_conv(x)
         return x
 
-    def forward_vgg_backbone(self, x):
+    def forward_backbone(self, x):
         features = {None: None}
         for name, child in self.backbone.named_children():
             x = child(x)
@@ -160,24 +167,7 @@ class Unet(nn.Module):
             if name in self.shortcut_features:
                 features[name] = x
 
-        return x, features
-
-    def forward_resnet_backbone(self, x):
-
-        features = {None: None}
-
-        # running encoder
-        for name, child in self.backbone.named_children():
-            if name == 'fc':
-                x = x.view(x.size(0), -1)
-            # actual forward
-            x = child(x)
-
-            # storing intermediate results
-            if name in self.shortcut_features:
-                features[name] = x
-
-            if name == 'layer4':
+            if name == self.bb_out_name:
                 break
 
         return x, features
@@ -187,7 +177,7 @@ class Unet(nn.Module):
         """ Getting the number of channels at skip connections and at the output of the encoder. """
 
         x = torch.zeros(1, 3, 224, 224)
-        channels = [0] if self.backbone_name.startswith('resnet') else []  # no features at full resolution for resnet
+        channels = [] if self.backbone_name.startswith('vgg') else [0]  # no features at full resolution for resnet
 
         # forward run in backbone to count channels
         for name, child in self.backbone.named_children():
@@ -203,7 +193,7 @@ class Unet(nn.Module):
 if __name__ == "__main__":
 
     # simple test run
-    net = Unet(backbone_name='vgg19')
+    net = Unet(backbone_name='densenet201')
 
     criterion = nn.MSELoss()
     optimizer = torch.optim.Adam(net.parameters())
