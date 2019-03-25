@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from torchvision import models
+from torchvision import models, datasets, transforms
 from torch.nn import functional as F
 
 
@@ -152,7 +152,6 @@ class Unet(nn.Module):
         x, features = self.forward_backbone(*input)
 
         for skip_name, upsample_block in zip(self.shortcut_features[::-1], self.upsample_blocks):
-            print(skip_name)
             skip_features = features[skip_name]
             x = upsample_block(x, skip_features)
 
