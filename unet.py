@@ -148,6 +148,10 @@ class Unet(nn.Module):
 
         # TODO: optionally freeze encoder weights
 
+    def freeze_encoder(self):
+        for param in self.backbone.parameters():
+            param.requires_grad = False
+
     def forward(self, *input):
         x, features = self.forward_backbone(*input)
 
@@ -192,7 +196,7 @@ class Unet(nn.Module):
 if __name__ == "__main__":
 
     # simple test run
-    net = Unet(backbone_name='densenet201')
+    net = Unet(backbone_name='resnet18')
 
     criterion = nn.MSELoss()
     optimizer = torch.optim.Adam(net.parameters())
