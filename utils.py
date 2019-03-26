@@ -5,7 +5,7 @@ def iou(predictions, labels, threshold=None, average=True, device=torch.device("
 
     """ Calculating Intersection over Union score for semantic segmentation. """
 
-    gt = (labels * 255.0).long().to(device)  # torchvision normalizes gt images, restoring integer values here
+    gt = labels.long().unsqueeze(1).to(device)
 
     # getting mask for valid pixels, then converting "void class" to background
     valid = gt != 255
@@ -41,7 +41,8 @@ def iou(predictions, labels, threshold=None, average=True, device=torch.device("
 
 
 if __name__ == "__main__":
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     predictions = torch.empty(7, 21, 224, 224).normal_()
-    labels = (torch.empty(7, 1, 224, 224).normal_(10, 10) % 21)/255.0
+    labels = (torch.empty(7, 224, 224).normal_(10, 10) % 21)
     out = iou(predictions, labels)
     print('done.')
