@@ -11,3 +11,11 @@ with multiple torchvision models. So I decided to create one.
 ### WIP
 
 So far VGG, ResNet and DenseNet backbones have been implemented.
+
+### Setup
+
+Installing package:
+
+    git clone https://github.com/mkisantal/backboned-unet.git
+    cd backboned-unet
+    pip install .
