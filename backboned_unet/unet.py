@@ -151,6 +151,8 @@ class Unet(nn.Module):
         if encoder_freeze:
             self.freeze_encoder()
 
+        self.replaced_conv1 = False  # for accommodating  inputs with different number of channels later
+
     def freeze_encoder(self):
 
         """ Freezing encoder parameters, the newly initialized decoder parameters are remaining trainable. """
@@ -201,6 +203,21 @@ class Unet(nn.Module):
                 out_channels = x.shape[1]
                 break
         return channels, out_channels
+
+    def get_pretrained_parameters(self):
+        for name, param in self.backbone.named_parameters():
+            if not (self.replaced_conv1 and name == 'conv1.weight'):
+                yield param
+
+    def get_random_initialized_parameters(self):
+        pretrained_param_names = set()
+        for name, param in self.backbone.named_parameters():
+            if not (self.replaced_conv1 and name == 'conv1.weight'):
+                pretrained_param_names.add('backbone.{}'.format(name))
+
+        for name, param in self.named_parameters():
+            if name not in pretrained_param_names:
+                yield param
 
 
 if __name__ == "__main__":
