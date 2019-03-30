@@ -146,7 +146,7 @@ class Unet(nn.Module):
                                                       parametric=parametric_upsampling,
                                                       use_bn=decoder_use_batchnorm))
 
-        self.final_conv = nn.Conv2d(16, classes, kernel_size=(1, 1))
+        self.final_conv = nn.Conv2d(decoder_filters[-1], classes, kernel_size=(1, 1))
 
         if encoder_freeze:
             self.freeze_encoder()
