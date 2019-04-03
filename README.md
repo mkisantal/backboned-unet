@@ -30,3 +30,23 @@ followed by convolution), specify the number of filters in the different decoder
     
 The module loads the backbone torchvision model, and builds a decoder on top of it using specified
 internal features of the backbone.
+
+
+### Results on Pascal VOC
+
+The figure below illustrates the training results for U-Nets with different ImageNet pretrained backbones.
+
+![pascal training](images/model_ious.png?raw=true "Pascal VOC training results")
+
+Setup:
+
+    network = Unet(backbone_name=model_name, classes=21, decoder_filters=(512, 256, 128, 64, 32)
+    criterion = torch.nn.CrossEntropyLoss(ignore_index=255)
+    optimizer = torch.optim.Adam([{'params': network.get_pretrained_parameters(), 'lr':1e-5},
+                                  {'params': network.get_random_initialized_parameters()}], lr=1e-4)
+    
+Images were resized to 224x224. Batch size 32. No dataset augmentation. IoU is calculated with the background ignored.
+
+Example segmentation results:
+
+![pascal results](images/examples.png?raw=true "Example segmentations from Pascal")
