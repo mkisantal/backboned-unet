@@ -35,6 +35,9 @@ def get_backbone(name, pretrained=True):
         backbone = models.densenet169(pretrained=True).features
     elif name == 'densenet201':
         backbone = models.densenet201(pretrained=True).features
+    elif name == 'unet_encoder':
+        from unet_backbone import UnetEncoder
+        backbone = UnetEncoder(3)
     else:
         raise NotImplemented('{} backbone model is not implemented so far.'.format(name))
 
@@ -55,6 +58,9 @@ def get_backbone(name, pretrained=True):
     elif name.startswith('densenet'):
         feature_names = [None, 'relu0', 'denseblock1', 'denseblock2', 'denseblock3']
         backbone_output = 'denseblock4'
+    elif name == 'unet_encoder':
+        feature_names = ['module1', 'module2', 'module3', 'module4']
+        backbone_output = 'module5'
     else:
         raise NotImplemented('{} backbone model is not implemented so far.'.format(name))
 
@@ -139,10 +145,13 @@ class Unet(nn.Module):
 
         # build decoder part
         self.upsample_blocks = nn.ModuleList()
+        decoder_filters = decoder_filters[:len(self.shortcut_features)]  # avoiding having more blocks than skip connections
         decoder_filters_in = [bb_out_chs] + list(decoder_filters[:-1])
+        num_blocks = len(self.shortcut_features)
         for i, [filters_in, filters_out] in enumerate(zip(decoder_filters_in, decoder_filters)):
+            print('upsample_blocks[{}] in: {}   out: {}'.format(i, filters_in, filters_out))
             self.upsample_blocks.append(UpsampleBlock(filters_in, filters_out,
-                                                      skip_in=shortcut_chs[4-i],
+                                                      skip_in=shortcut_chs[num_blocks-i-1],
                                                       parametric=parametric_upsampling,
                                                       use_bn=decoder_use_batchnorm))
 
@@ -177,7 +186,7 @@ class Unet(nn.Module):
 
         """ Forward propagation in backbone encoder network.  """
 
-        features = {None: None}
+        features = {None: None} if None in self.shortcut_features else dict()
         for name, child in self.backbone.named_children():
             x = child(x)
             if name in self.shortcut_features:
@@ -192,7 +201,8 @@ class Unet(nn.Module):
         """ Getting the number of channels at skip connections and at the output of the encoder. """
 
         x = torch.zeros(1, 3, 224, 224)
-        channels = [] if self.backbone_name.startswith('vgg') else [0]  # only VGG has features at full resolution
+        has_fullres_features = self.backbone_name.startswith('vgg') or self.backbone_name == 'unet_encoder'
+        channels = [] if has_fullres_features else [0]  # only VGG has features at full resolution
 
         # forward run in backbone to count channels (dirty solution but works for *any* Module)
         for name, child in self.backbone.named_children():
@@ -224,8 +234,6 @@ if __name__ == "__main__":
 
     # simple test run
     net = Unet(backbone_name='resnet18')
-    # from code import interact
-    # interact(local=locals())
 
     criterion = nn.MSELoss()
     optimizer = torch.optim.Adam(net.parameters())
