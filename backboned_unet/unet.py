@@ -12,7 +12,7 @@ def get_backbone(name, pretrained=True):
 
     # loading backbone model
     if name == 'resnet18':
-        backbone = models.resnet50(pretrained=pretrained)
+        backbone = models.resnet18(pretrained=pretrained)
     elif name == 'resnet34':
         backbone = models.resnet34(pretrained=pretrained)
     elif name == 'resnet50':
